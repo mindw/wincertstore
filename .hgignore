@@ -1,0 +1,16 @@
+^build/
+^dist/
+^MANIFEST
+^README\.html
+
+^.project
+^.pydevproject
+^.settings
+
+syntax: glob
+*.swp
+*.o
+*.pyc
+*.pyo
+*.pyd
+*~
