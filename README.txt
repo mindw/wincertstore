@@ -13,9 +13,30 @@ Example
             for cert in store.itercerts():
                 print(cert.get_pem().decode("ascii")
 
+For Python versions with with statement::
+
+    for storename in ("CA", "ROOT"):
+        store = wincertstore.CertSystemStore(storename)
+        try:
+            for cert in store.itercerts():
+                print(cert.get_pem().decode("ascii")
+        finally:
+            store.close()
+
 See `CertOpenSystemStore`_
 
 
+Requirements
+============
+
+- Python 2.3 to 3.3
+
+- Windows XP, Windows Server 2003 or newer
+
+- ctypes 1.0.2 (Python 2.3 and 2.4)
+  from http://sourceforge.net/projects/ctypes/
+
+  
 License
 =======
 

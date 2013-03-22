@@ -1,8 +1,12 @@
 #!/usr/bin/env python
-from __future__ import absolute_import
 import sys
+import os
 from distutils.core import setup, Command
-import subprocess
+try:
+    import subprocess
+except ImportError:
+    subprocess = None
+
 
 class PyTest(Command):
     user_options = []
@@ -11,15 +15,23 @@ class PyTest(Command):
     def finalize_options(self):
         pass
     def run(self):
-        errno = subprocess.call([sys.executable, "tests.py"])
+        if subprocess is None:
+            exe = sys.executable
+            errno = os.spawnl(os.P_WAIT, exe, os.path.basename(exe),
+                              "tests.py")
+        else:
+            errno = subprocess.call([sys.executable, "tests.py"])
         raise SystemExit(errno)
 
 
-long_description = []
-with open("README.txt") as f:
-    long_description.append(f.read())
-with open("CHANGES.txt") as f:
-    long_description.append(f.read())
+def _read(fname):
+    f = open(fname)
+    try:
+        return f.read()
+    finally:
+        f.close()
+
+long_description = [_read("README.txt"), _read("CHANGES.txt")]
 
 setup(
     name="wincertstore",
@@ -45,6 +57,9 @@ setup(
         "Operating System :: Microsoft :: Windows",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2",
+        "Programming Language :: Python :: 2.3",
+        "Programming Language :: Python :: 2.4",
+        "Programming Language :: Python :: 2.5",
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",

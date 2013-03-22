@@ -8,15 +8,41 @@
 
 Requirements:
   Windows XP, Windows Server 2003 or newer
-  Python 2.6+
+  Python 2.3+
   Python 3.2+
+
+Python 2.3 and 2.4 need ctypes 1.0.2 from
+http://sourceforge.net/projects/ctypes/
 """
-from ctypes import WinDLL, FormatError, get_last_error, string_at
+import sys
+import binascii
+from ctypes import WinDLL, FormatError, string_at
 from ctypes import Structure, POINTER, c_void_p
 from ctypes.wintypes import LPCWSTR, DWORD, BOOL, BYTE
-from base64 import b64encode
+try:
+    from ctypes import get_last_error
+except ImportError:
+    from ctypes import GetLastError as get_last_error
+    USE_LAST_ERROR = False
+else:
+    USE_LAST_ERROR = True
 
 __all__ = ("CertSystemStore",)
+
+
+if sys.version_info[0] == 3:
+    def b(s):
+        return s.encode("ascii")
+else:
+    def b(s):
+        return s
+
+
+def b64encode(s):
+    """base 64 encode
+    """
+    return binascii.b2a_base64(s)[:-1]
+
 
 HCERTSTORE = c_void_p
 PCCERT_INFO = c_void_p
@@ -26,44 +52,49 @@ LPTCSTR = LPCWSTR
 PKCS_7_ASN_ENCODING = 0x00010000
 
 def isPKCS7(value):
+    """PKCS#7 check
+    """
     return (value & PKCS_7_ASN_ENCODING) == PKCS_7_ASN_ENCODING
 
 
 class ContextStruct(Structure):
     cert_type = None
+    _fields_ = []
 
     def get_encoded(self):
         """Get encoded cert as byte string
         """
         pass
 
-    @property
     def encoding_type(self):
         """Get encoding type for PEM
         """
         if isPKCS7(self.dwCertEncodingType):
-            return b"PKCS7"
+            return "PKCS7"
         else:
             return self.cert_type
+
+    encoding_type = property(encoding_type)
 
     def get_pem(self):
         """Get PEM encoded cert
         """
         encoding_type = self.encoding_type
         b64data = b64encode(self.get_encoded())
-        lines = [b"-----BEGIN " + encoding_type + b"-----"]
+        lines = [b("-----BEGIN %s-----" % encoding_type)]
         # split up in lines of 64 chars each
         quotient, remainder = divmod(len(b64data), 64)
         linecount = quotient + bool(remainder)
-        lines.extend(b64data[i*64:(i+1)*64] for i in range(linecount))
-        lines.append(b"-----END " + encoding_type + b"-----")
-        return b"\n".join(lines)
+        for i in range(linecount):
+            lines.append(b64data[i * 64:(i + 1) * 64])
+        lines.append(b("-----END %s-----" % encoding_type))
+        return b("\n").join(lines)
 
 
 class CERT_CONTEXT(ContextStruct):
     """Cert context
     """
-    cert_type = b"CERTIFICATE"
+    cert_type = "CERTIFICATE"
     _fields_ = [
         ("dwCertEncodingType", DWORD),
         ("pbCertEncoded", POINTER(BYTE)),
@@ -79,7 +110,7 @@ class CERT_CONTEXT(ContextStruct):
 class CRL_CONTEXT(ContextStruct):
     """Cert revocation list context
     """
-    cert_type = b"X509 CRL"
+    cert_type = "X509 CRL"
     _fields_ = [
         ("dwCertEncodingType", DWORD),
         ("pbCrlEncoded", POINTER(BYTE)),
@@ -92,7 +123,11 @@ class CRL_CONTEXT(ContextStruct):
         return string_at(self.pbCrlEncoded, self.cbCrlEncoded)
 
 
-crypt32 = WinDLL("crypt32.dll", use_last_error=True)
+if USE_LAST_ERROR:
+    crypt32 = WinDLL("crypt32.dll", use_last_error=True)
+else:
+    crypt32 = WinDLL("crypt32.dll")
+
 
 CertOpenSystemStore = crypt32.CertOpenSystemStoreW
 CertOpenSystemStore.argtypes = [c_void_p, LPTCSTR]
@@ -132,25 +167,28 @@ class CertSystemStore(object):
 
     def __init__(self, storename):
         self._storename = storename
-        self._hStore = None
+        self._hStore = CertOpenSystemStore(None, self.storename)
+        if not self._hStore: # NULL ptr
+            self._hStore = None
+            errmsg = FormatError(get_last_error())
+            raise OSError(errmsg)
 
-    @property
     def storename(self):
         """Get store name
         """
         return self._storename
 
+    storename = property(storename)
+
+    def close(self):
+        CertCloseStore(self._hStore, 0)
+        self._hStore = None
+
     def __enter__(self):
-        self._hStore = CertOpenSystemStore(None, self.storename)
-        if not self._hStore:
-            self._hStore = None
-            errmsg = FormatError(get_last_error())
-            raise OSError(errmsg)
         return self
 
     def __exit__(self, exc, value, tb):
-        CertCloseStore(self._hStore, 0)
-        self._hStore = None
+        self.close()
 
     def itercerts(self):
         """Iterate over certificates
@@ -179,6 +217,9 @@ class CertSystemStore(object):
 
 if __name__ == "__main__":
     for storename in ("CA", "ROOT"):
-        with CertSystemStore(storename) as store:
+        store = CertSystemStore(storename)
+        try:
             for cert in store.itercerts():
                 print(cert.get_pem().decode("ascii"))
+        finally:
+            store.close()
