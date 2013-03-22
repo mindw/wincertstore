@@ -17,7 +17,7 @@ Example
             for cert in store.itercerts():
                 print(cert.get_pem().decode("ascii")
 
-For Python versions with with statement::
+For Python versions without the with statement::
 
     for storename in ("CA", "ROOT"):
         store = wincertstore.CertSystemStore(storename)
