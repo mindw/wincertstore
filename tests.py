@@ -69,15 +69,15 @@ class TestWinCertStore(unittest.TestCase):
         try:
             # based on example from SSL module docs
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(("bitbucket.org", 443))
+            sock.connect(("www.google.com", 443))
             ssl_sock = ssl.wrap_socket(sock,
                                        ssl_version=ssl.PROTOCOL_SSLv3,
                                        ca_certs=certfile.name,
                                        cert_reqs=ssl.CERT_REQUIRED)
-            #ssl_sock.do_handshake()
-            #print(repr(ssl_sock.getpeername()))
-            #print(ssl_sock.cipher())
-            #print(pprint.pformat(ssl_sock.getpeercert()))
+            if 0:
+                print(repr(ssl_sock.getpeername()))
+                print(ssl_sock.cipher())
+                print(pprint.pformat(ssl_sock.getpeercert()))
 
             ssl_sock.write(b("GET / HTTP/1.1\r\n"
                              "Host: www.google.com\r\n\r\n"))
