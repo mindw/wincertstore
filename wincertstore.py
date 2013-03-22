@@ -83,15 +83,16 @@ class ContextStruct(Structure):
         """Get PEM encoded cert
         """
         encoding_type = self.encoding_type
-        b64data = b64encode(self.get_encoded())
-        lines = [b("-----BEGIN %s-----" % encoding_type)]
+        b64data = b64encode(self.get_encoded()).decode("ascii")
+        lines = ["-----BEGIN %s-----" % encoding_type]
         # split up in lines of 64 chars each
         quotient, remainder = divmod(len(b64data), 64)
         linecount = quotient + bool(remainder)
         for i in range(linecount):
             lines.append(b64data[i * 64:(i + 1) * 64])
-        lines.append(b("-----END %s-----" % encoding_type))
-        return b("\n").join(lines)
+        lines.append("-----END %s-----" % encoding_type)
+        lines.append("") # trailing newline
+        return "\n".join(lines)
 
 
 class CERT_CONTEXT(ContextStruct):
