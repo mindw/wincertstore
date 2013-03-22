@@ -16,7 +16,10 @@ http://sourceforge.net/projects/ctypes/
 """
 __all__ = ("CertSystemStore",)
 
+import os
+import shutil
 import sys
+import tempfile
 from ctypes import WinDLL, FormatError, string_at
 from ctypes import Structure, POINTER, c_void_p
 from ctypes.wintypes import LPCWSTR, DWORD, BOOL, BYTE
@@ -35,7 +38,7 @@ except ImportError:
     # Python 2.3
     from binascii import b2a_base64
     def b64encode(s):
-        return bb2a_base64(s)[:-1]
+        return b2a_base64(s)[:-1]
 
 
 if sys.version_info[0] == 3:
@@ -222,11 +225,87 @@ class CertSystemStore(object):
             yield crl
 
 
+class CertFile(object):
+    """Wrapper to handle a temporary file for a CA.pem
+
+    Note: The object uses a temporary file because older Python versions have
+          no means to keep a tempfile after it has been closed.
+
+    Usage:
+        import wincertstore
+        import atexit
+
+        certfile = wincertstore.CertFile()
+        certfile.addstore("CA")
+        certfile.addstore("ROOT")
+        atexit.register(certfile.close) # cleanup and remove files on shutdown)
+
+        ca_cert = certfile.name
+
+    """
+
+    def __init__(self, suffix="certstore"):
+        self._tempdir = tempfile.mkdtemp(suffix=suffix)
+        self._capem = os.path.join(self._tempdir, "ca.pem")
+
+    def name(self):
+        """Path to CA.pem
+        """
+        return self._capem
+
+    name = property(name)
+
+    def close(self):
+        shutil.rmtree(self._tempdir)
+        self._tempdir = None
+        self._capem = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc, value, tb):
+        self.close()
+
+    def addcerts(self, certs):
+        """Add certs to store
+        """
+        f = open(self._capem, "a")
+        try:
+            #f.seek(0, os.SEEK_END)
+            for cert in certs:
+                f.write(cert.get_pem())
+        finally:
+            f.close()
+
+    def addstore(self, store):
+        """Add store to CertFile
+
+        :param store: either a name of a store or a CertSystemStore instance
+        """
+        if hasattr(store, "itercerts"):
+            self.addcerts(store.itercerts())
+        else:
+            store = CertSystemStore(store)
+            try:
+                self.addcerts(store.itercerts())
+            finally:
+                store.close()
+
+    def read(self):
+        """Read CA.pem file and return content
+        """
+        f = open(self._capem, "r")
+        try:
+            return f.read()
+        finally:
+            f.close()
+
+
 if __name__ == "__main__":
     for storename in ("CA", "ROOT"):
         store = CertSystemStore(storename)
         try:
             for cert in store.itercerts():
-                print(cert.get_pem().decode("ascii"))
+                print(cert.get_pem().strip())
         finally:
             store.close()
