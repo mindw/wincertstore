@@ -7,6 +7,10 @@
 import os
 import sys
 import unittest
+try:
+    import ssl
+except ImportError:
+    ssl = None
 
 import wincertstore
 
@@ -15,8 +19,14 @@ class TestWinCertStore(unittest.TestCase):
     def test_wincertstore(self):
         store = wincertstore.CertSystemStore("CA")
         try:
-            store.itercerts()
-            store.itercrls()
+            for cert in store.itercerts():
+                pem = cert.get_pem()
+                enc = cert.get_encoded()
+                if ssl:
+                    self.assertEqual(ssl.DER_cert_to_PEM_cert(enc), pem)
+                    self.assertEqual(ssl.PEM_cert_to_DER_cert(pem), enc)
+            for crl in store.itercrls():
+                pem = cert.get_pem()
         finally:
             store.close()
 
