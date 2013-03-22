@@ -2,6 +2,10 @@
 wincertstore
 ============
 
+wincertstore provides an interface to access Windows' CA and CRL certificates.
+It uses ctypes and Windows's sytem cert store API through crypt32.dll.
+
+
 Example
 =======
 
@@ -25,7 +29,7 @@ For Python versions with with statement::
 
 See `CertOpenSystemStore`_
 
-::
+CertFile helper::
 
     import wincertstore
     import atexit

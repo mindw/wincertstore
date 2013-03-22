@@ -47,7 +47,7 @@ setup(
     keywords="windows cert ssl ca crl",
     platforms="Windows",
     license="PSFL",
-    description="Python module to extract CA and CRL certs from Window's cert store (ctypes based).",
+    description="Python module to extract CA and CRL certs from Windows' cert store (ctypes based).",
     long_description="\n".join(long_description),
     classifiers=[
         "Development Status :: 4 - Beta",
