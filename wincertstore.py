@@ -14,11 +14,13 @@ Requirements:
 Python 2.3 and 2.4 need ctypes 1.0.2 from
 http://sourceforge.net/projects/ctypes/
 """
+__all__ = ("CertSystemStore",)
+
 import sys
-import binascii
 from ctypes import WinDLL, FormatError, string_at
 from ctypes import Structure, POINTER, c_void_p
 from ctypes.wintypes import LPCWSTR, DWORD, BOOL, BYTE
+
 try:
     from ctypes import get_last_error
 except ImportError:
@@ -27,7 +29,13 @@ except ImportError:
 else:
     USE_LAST_ERROR = True
 
-__all__ = ("CertSystemStore",)
+try:
+    from base64 import b64encode
+except ImportError:
+    # Python 2.3
+    from binascii import b2a_base64
+    def b64encode(s):
+        return bb2a_base64(s)[:-1]
 
 
 if sys.version_info[0] == 3:
@@ -36,12 +44,6 @@ if sys.version_info[0] == 3:
 else:
     def b(s):
         return s
-
-
-def b64encode(s):
-    """base 64 encode
-    """
-    return binascii.b2a_base64(s)[:-1]
 
 
 HCERTSTORE = c_void_p
@@ -59,6 +61,7 @@ def isPKCS7(value):
 
 class ContextStruct(Structure):
     cert_type = None
+    __slots__ = ()
     _fields_ = []
 
     def get_encoded(self):
@@ -95,6 +98,7 @@ class CERT_CONTEXT(ContextStruct):
     """Cert context
     """
     cert_type = "CERTIFICATE"
+    __slots__ = ()
     _fields_ = [
         ("dwCertEncodingType", DWORD),
         ("pbCertEncoded", POINTER(BYTE)),
@@ -111,6 +115,7 @@ class CRL_CONTEXT(ContextStruct):
     """Cert revocation list context
     """
     cert_type = "X509 CRL"
+    __slots__ = ()
     _fields_ = [
         ("dwCertEncodingType", DWORD),
         ("pbCrlEncoded", POINTER(BYTE)),
@@ -164,6 +169,7 @@ class CertSystemStore(object):
     SPC:
       Software Publisher Certificate
     """
+    __slots__ = ("_storename", "_hStore")
 
     def __init__(self, storename):
         self._storename = storename
