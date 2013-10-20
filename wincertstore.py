@@ -175,7 +175,9 @@ class CERT_CONTEXT(ContextStruct):
         for i in range(enhkey.cUsageIdentifier):
             oid = enhkey.rgpszUsageIdentifier[i]
             if oid:
-                oids.add(oid.decode("ascii") if PY3 else oid)
+                if PY3:
+                    oid = oid.decode("ascii")
+                oids.add(oid)
         return oids
 
     def enhanced_keyusage(self):
