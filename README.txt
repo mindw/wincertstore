@@ -11,7 +11,10 @@ Example
     for storename in ("CA", "ROOT"):
         with wincertstore.CertSystemStore(storename) as store:
             for cert in store.itercerts():
-                print(cert.get_pem().decode("ascii")
+                print(cert.get_pem().decode("ascii"))
+                print(cert.get_name())
+                print(cert.enhanced_keyusage_names())
+
 
 For Python versions with with statement::
 
