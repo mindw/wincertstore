@@ -1,3 +1,4 @@
 include README.txt CHANGES.txt LICENSE
 include MANIFEST.in
 include setup.py tests.py
+include setup.cfg tox.ini runtox.bat
