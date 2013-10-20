@@ -20,9 +20,11 @@ import os
 import shutil
 import sys
 import tempfile
-from ctypes import WinDLL, FormatError, string_at
+from ctypes import WinDLL, FormatError, string_at, pointer
+from ctypes import create_unicode_buffer, resize
 from ctypes import Structure, POINTER, c_void_p
-from ctypes.wintypes import LPCWSTR, DWORD, BOOL, BYTE
+from ctypes.wintypes import LPCWSTR, LPSTR, DWORD, BOOL, BYTE, LPWSTR
+
 
 try:
     from ctypes import get_last_error
@@ -37,6 +39,7 @@ try:
 except ImportError:
     # Python 2.3
     from binascii import b2a_base64
+
     def b64encode(s):
         return b2a_base64(s)[:-1]
 
@@ -55,6 +58,43 @@ PCCRL_INFO = c_void_p
 LPTCSTR = LPCWSTR
 
 PKCS_7_ASN_ENCODING = 0x00010000
+
+# enhanced key usage
+CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG = 0x2
+CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG = 0x4
+#CRYPT_E_NOT_FOUND = 0x80092004
+CRYPT_E_NOT_FOUND = -2146885628
+
+# cert name
+CERT_NAME_SIMPLE_DISPLAY_TYPE = 4
+CERT_NAME_FRIENDLY_DISPLAY_TYPE = 5
+CERT_NAME_ISSUER_FLAG = 0x1
+
+# OID mapping for enhanced key usage
+SERVER_AUTH = "1.3.6.1.5.5.7.3.1"
+CLIENT_AUTH = "1.3.6.1.5.5.7.3.2"
+CODE_SIGNING = "1.3.6.1.5.5.7.3.3"
+EMAIL_PROTECTION = "1.3.6.1.5.5.7.3.4"
+IPSEC_END_SYSTEM = "1.3.6.1.5.5.7.3.5"
+IPSEC_TUNNEL = "1.3.6.1.5.5.7.3.6"
+IPSEC_USER = "1.3.6.1.5.5.7.3.7"
+TIME_STAMPING = "1.3.6.1.5.5.7.3.8"
+OCSP_SIGNING = "1.3.6.1.5.5.7.3.9"
+DVCS = "1.3.6.1.5.5.7.3.10"
+
+TrustOIDs = {
+    SERVER_AUTH: "SERVER_AUTH",
+    CLIENT_AUTH: "CLIENT_AUTH",
+    CODE_SIGNING: "CODE_SIGNING",
+    EMAIL_PROTECTION: "EMAIL_PROTECTION",
+    IPSEC_END_SYSTEM: "IPSEC_END_SYSTEM",
+    IPSEC_TUNNEL: "IPSEC_TUNNEL",
+    IPSEC_USER: "IPSEC_USER",
+    TIME_STAMPING: "TIME_STAMPING",
+    OCSP_SIGNING: "OCSP_SIGNING",
+    DVCS: "DVCS",
+}
+
 
 def isPKCS7(value):
     """PKCS#7 check
@@ -94,7 +134,8 @@ class ContextStruct(Structure):
         for i in range(linecount):
             lines.append(b64data[i * 64:(i + 1) * 64])
         lines.append("-----END %s-----" % encoding_type)
-        lines.append("") # trailing newline
+        # trailing newline
+        lines.append("")
         return "\n".join(lines)
 
 
@@ -102,7 +143,7 @@ class CERT_CONTEXT(ContextStruct):
     """Cert context
     """
     cert_type = "CERTIFICATE"
-    __slots__ = ()
+    __slots__ = ("_enhkey")
     _fields_ = [
         ("dwCertEncodingType", DWORD),
         ("pbCertEncoded", POINTER(BYTE)),
@@ -113,6 +154,64 @@ class CERT_CONTEXT(ContextStruct):
 
     def get_encoded(self):
         return string_at(self.pbCertEncoded, self.cbCertEncoded)
+
+    def _enhkey_error(self):
+        err = get_last_error()
+        if err == CRYPT_E_NOT_FOUND:
+            return True
+        errmsg = FormatError(err)
+        raise OSError(err, errmsg)
+
+    def _get_enhkey(self, flag):
+        pCertCtx = pointer(self)
+        enhkey = CERT_ENHKEY_USAGE()
+        size = DWORD()
+
+        res = CertGetEnhancedKeyUsage(pCertCtx, flag, None, pointer(size))
+        if res == 0:
+            return self._enhkey_error()
+
+        resize(enhkey, size.value)
+        res = CertGetEnhancedKeyUsage(pCertCtx, flag, pointer(enhkey),
+                                      pointer(size))
+        if res == 0:
+            return self._enhkey_error()
+
+        oids = set()
+        for i in range(enhkey.cUsageIdentifier):
+            oid = enhkey.rgpszUsageIdentifier[i]
+            if oid:
+                oids.add(oid)
+        return oids
+
+    def enhanced_keyusage(self):
+        enhkey = getattr(self, "_enhkey", None)
+        if enhkey is not None:
+            return enhkey
+        keyusage = self._get_enhkey(CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG)
+        if keyusage is True:
+            keyusage = self._get_enhkey(CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG)
+        if keyusage is True:
+            self._enhkey = True
+        else:
+            self._enhkey = frozenset(keyusage)
+        return keyusage
+
+    def enhanced_keyusage_names(self):
+        enhkey = self.enhanced_keyusage()
+        if enhkey is True:
+            return True
+        result = set()
+        for oid in self.enhanced_keyusage():
+            result.add(TrustOIDs.get(oid, oid))
+        return result
+
+    def get_name(self, typ=CERT_NAME_SIMPLE_DISPLAY_TYPE, flag=0):
+        pCertCtx = pointer(self)
+        cbsize = CertGetNameStringW(pCertCtx, typ, flag, None, None, 0)
+        buf = create_unicode_buffer(cbsize)
+        cbsize = CertGetNameStringW(pCertCtx, typ, flag, None, buf, cbsize)
+        return buf.value
 
 
 class CRL_CONTEXT(ContextStruct):
@@ -130,6 +229,16 @@ class CRL_CONTEXT(ContextStruct):
 
     def get_encoded(self):
         return string_at(self.pbCrlEncoded, self.cbCrlEncoded)
+
+
+class CERT_ENHKEY_USAGE(Structure):
+    """Enhanced Key Usage
+    """
+    __slots__ = ()
+    _fields_ = [
+        ("cUsageIdentifier", DWORD),
+        ("rgpszUsageIdentifier", POINTER(LPSTR))
+        ]
 
 
 if USE_LAST_ERROR:
@@ -156,6 +265,18 @@ CertEnumCRLsInStore = crypt32.CertEnumCRLsInStore
 CertEnumCRLsInStore.argtypes = [HCERTSTORE, PCCRL_CONTEXT]
 CertEnumCRLsInStore.restype = PCCRL_CONTEXT
 
+PCERT_ENHKEY_USAGE = POINTER(CERT_ENHKEY_USAGE)
+CertGetEnhancedKeyUsage = crypt32.CertGetEnhancedKeyUsage
+CertGetEnhancedKeyUsage.argtypes = [PCCERT_CONTEXT, DWORD, PCERT_ENHKEY_USAGE,
+                                    POINTER(DWORD)]
+CertGetEnhancedKeyUsage.restype = BOOL
+
+
+CertGetNameStringW = crypt32.CertGetNameStringW
+CertGetNameStringW.argtypes = [PCCERT_CONTEXT, DWORD, DWORD, c_void_p,
+                               LPWSTR, DWORD]
+CertGetNameStringW.restype = DWORD
+
 
 class CertSystemStore(object):
     """Wrapper for Window's cert system store
@@ -178,7 +299,7 @@ class CertSystemStore(object):
     def __init__(self, storename):
         self._storename = storename
         self._hStore = CertOpenSystemStore(None, self.storename)
-        if not self._hStore: # NULL ptr
+        if not self._hStore:  # NULL ptr
             self._hStore = None
             errmsg = FormatError(get_last_error())
             raise OSError(errmsg)

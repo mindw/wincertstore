@@ -27,11 +27,13 @@ else:
 
 class TestWinCertStore(unittest.TestCase):
     def test_wincertstore(self):
-        store = wincertstore.CertSystemStore("CA")
+        store = wincertstore.CertSystemStore("ROOT")
         try:
             for cert in store.itercerts():
                 pem = cert.get_pem()
                 enc = cert.get_encoded()
+                name = cert.get_name()
+                trust = cert.enhanced_keyusage_names()
                 if ssl is not None:
                     self.assertEqual(ssl.DER_cert_to_PEM_cert(enc), pem)
                     self.assertEqual(ssl.PEM_cert_to_DER_cert(pem), enc)
