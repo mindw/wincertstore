@@ -1,0 +1,9 @@
+Changelog
+=========
+
+wincertstore 0.1
+----------------
+
+*Release date: ??-???-2013*
+
+- Initial release
