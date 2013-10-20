@@ -44,13 +44,7 @@ except ImportError:
         return b2a_base64(s)[:-1]
 
 
-if sys.version_info[0] == 3:
-    def b(s):
-        return s.encode("ascii")
-else:
-    def b(s):
-        return s
-
+PY3 = sys.version_info[0] == 3
 
 HCERTSTORE = c_void_p
 PCCERT_INFO = c_void_p
@@ -181,7 +175,7 @@ class CERT_CONTEXT(ContextStruct):
         for i in range(enhkey.cUsageIdentifier):
             oid = enhkey.rgpszUsageIdentifier[i]
             if oid:
-                oids.add(oid)
+                oids.add(oid.decode("ascii") if PY3 else oid)
         return oids
 
     def enhanced_keyusage(self):
@@ -271,7 +265,6 @@ CertGetEnhancedKeyUsage.argtypes = [PCCERT_CONTEXT, DWORD, PCERT_ENHKEY_USAGE,
                                     POINTER(DWORD)]
 CertGetEnhancedKeyUsage.restype = BOOL
 
-
 CertGetNameStringW = crypt32.CertGetNameStringW
 CertGetNameStringW.argtypes = [PCCERT_CONTEXT, DWORD, DWORD, c_void_p,
                                LPWSTR, DWORD]
@@ -321,13 +314,18 @@ class CertSystemStore(object):
     def __exit__(self, exc, value, tb):
         self.close()
 
-    def itercerts(self):
+    def itercerts(self, usage=SERVER_AUTH):
         """Iterate over certificates
         """
         pCertCtx = CertEnumCertificatesInStore(self._hStore, None)
         while pCertCtx:
             certCtx = pCertCtx[0]
-            yield certCtx
+            enhkey = certCtx.enhanced_keyusage()
+            if usage is not None:
+                if enhkey is True or usage in enhkey:
+                    yield certCtx
+            else:
+                yield certCtx
             pCertCtx = CertEnumCertificatesInStore(self._hStore, pCertCtx)
 
     def itercrls(self):
