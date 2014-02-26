@@ -71,7 +71,7 @@ class TestWinCertStore(unittest.TestCase):
         try:
             # based on example from SSL module docs
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(("www.google.com", 443))
+            sock.connect(("pypi.python.org", 443))
             ssl_sock = ssl.wrap_socket(sock,
                                        ssl_version=ssl.PROTOCOL_SSLv3,
                                        ca_certs=certfile.name,
