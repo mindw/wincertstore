@@ -39,7 +39,7 @@ long_description = [_read("README.txt"), _read("CHANGES.txt")]
 
 setup(
     name="wincertstore",
-    version="0.1",
+    version="0.2",
     cmdclass={"test": PyTest},
     py_modules=["wincertstore"],
     author="Christian Heimes",
