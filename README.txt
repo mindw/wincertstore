@@ -5,6 +5,12 @@ wincertstore
 wincertstore provides an interface to access Windows' CA and CRL certificates.
 It uses ctypes and Windows's sytem cert store API through crypt32.dll.
 
+.. warning:: Security Fix
+   
+   wincertstore 0.1 used to return *all* certificates although some are *not*
+   suitable to verify TLS/SSL server certificates. wincertstore 0.2 only
+   returns certificates for *SERVER_AUTH* enhanced key usage by default.
+
 
 Example
 =======
@@ -14,11 +20,14 @@ Example
     import wincertstore
     for storename in ("CA", "ROOT"):
         with wincertstore.CertSystemStore(storename) as store:
-            for cert in store.itercerts():
+            for cert in store.itercerts(usage=wincertstore.SERVER_AUTH):
                 print(cert.get_pem().decode("ascii"))
                 print(cert.get_name())
                 print(cert.enhanced_keyusage_names())
 
+``SERVER_AUTH`` is the default enhanced key usage. In order to get all
+certificates for any usage, use ``None``. The module offers more OIDs like
+``CLIENT_AUTH``, too.
 
 For Python versions without the with statement::
 
@@ -62,7 +71,7 @@ Requirements
 License
 =======
 
-Copyright (c) 2013 by Christian Heimes <christian@python.org>
+Copyright (c) 2013, 2014 by Christian Heimes <christian@python.org>
 
 Licensed to PSF under a Contributor Agreement.
 
