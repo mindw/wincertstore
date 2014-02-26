@@ -3,6 +3,7 @@
 ^MANIFEST
 ^README\.html
 ^CHANGES\.html
+^wincertstore.egg-info
 
 ^.project
 ^.pydevproject
