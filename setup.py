@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 import sys
 import os
-from distutils.core import setup, Command
+try:
+    from setuptools.core import setup
+except ImportError:
+    from distutils.core import setup
+from distutils.core import Command
 try:
     import subprocess
 except ImportError:
