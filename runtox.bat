@@ -1,6 +1,6 @@
 @echo off
 cls
-"c:\Program Files\Python27\Scripts\tox.exe"
+"c:\Program Files (x86)\Python27\Scripts\tox.exe"
 
 echo.
 echo --------------
