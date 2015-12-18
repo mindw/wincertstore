@@ -10,10 +10,7 @@ import socket
 import sys
 import unittest
 
-try:
-    import ssl
-except ImportError:
-    ssl = None
+import ssl
 
 import wincertstore
 
@@ -34,9 +31,9 @@ class TestWinCertStore(unittest.TestCase):
                 enc = cert.get_encoded()
                 name = cert.get_name()
                 trust = cert.enhanced_keyusage_names()
-                if ssl is not None:
-                    self.assertEqual(ssl.DER_cert_to_PEM_cert(enc), pem)
-                    self.assertEqual(ssl.PEM_cert_to_DER_cert(pem), enc)
+                self.assertEqual(ssl.DER_cert_to_PEM_cert(enc), pem)
+                self.assertEqual(ssl.PEM_cert_to_DER_cert(pem), enc)
+
             for crl in store.itercrls():
                 pem = cert.get_pem()
         finally:
@@ -64,16 +61,13 @@ class TestWinCertStore(unittest.TestCase):
         self.assertFalse(os.path.isfile(pemfile))
 
     def test_certfile_ssl(self):
-        if ssl is None:
-            return
-
         certfile = self.create_certfile()
         try:
             # based on example from SSL module docs
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect(("pypi.python.org", 443))
             ssl_sock = ssl.wrap_socket(sock,
-                                       ssl_version=ssl.PROTOCOL_SSLv3,
+                                       ssl_version=ssl.PROTOCOL_TLSv1,
                                        ca_certs=certfile.name,
                                        cert_reqs=ssl.CERT_REQUIRED)
             if 0:
@@ -88,12 +82,13 @@ class TestWinCertStore(unittest.TestCase):
         finally:
             certfile.close()
 
-def test_main():
+
+def _test_main():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(TestWinCertStore))
     return suite
 
 if __name__ == "__main__":
-    suite = test_main()
+    suite = _test_main()
     result = unittest.TextTestRunner(verbosity=1).run(suite)
     sys.exit(not result.wasSuccessful())

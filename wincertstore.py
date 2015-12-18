@@ -8,40 +8,20 @@
 
 Requirements:
   Windows XP, Windows Server 2003 or newer
-  Python 2.3+
+  Python 2.7+
   Python 3.2+
-
-Python 2.3 and 2.4 need ctypes 1.0.2 from
-http://sourceforge.net/projects/ctypes/
 """
-__all__ = ("CertSystemStore",)
+from __future__ import print_function
 
 import os
-import shutil
+# import shutil
 import sys
 import tempfile
 from ctypes import WinDLL, FormatError, string_at, pointer
-from ctypes import create_unicode_buffer, resize
+from ctypes import create_unicode_buffer, resize, get_last_error
 from ctypes import Structure, POINTER, c_void_p
 from ctypes.wintypes import LPCWSTR, LPSTR, DWORD, BOOL, BYTE, LPWSTR
-
-
-try:
-    from ctypes import get_last_error
-except ImportError:
-    from ctypes import GetLastError as get_last_error
-    USE_LAST_ERROR = False
-else:
-    USE_LAST_ERROR = True
-
-try:
-    from base64 import b64encode
-except ImportError:
-    # Python 2.3
-    from binascii import b2a_base64
-
-    def b64encode(s):
-        return b2a_base64(s)[:-1]
+from base64 import b64encode
 
 
 PY3 = sys.version_info[0] == 3
@@ -237,10 +217,7 @@ class CERT_ENHKEY_USAGE(Structure):
         ]
 
 
-if USE_LAST_ERROR:
-    crypt32 = WinDLL("crypt32.dll", use_last_error=True)
-else:
-    crypt32 = WinDLL("crypt32.dll")
+crypt32 = WinDLL("crypt32.dll", use_last_error=True)
 
 
 CertOpenSystemStore = crypt32.CertOpenSystemStoreW
@@ -299,12 +276,11 @@ class CertSystemStore(object):
             errmsg = FormatError(get_last_error())
             raise OSError(errmsg)
 
+    @property
     def storename(self):
         """Get store name
         """
         return self._storename
-
-    storename = property(storename)
 
     def close(self):
         CertCloseStore(self._hStore, 0)
@@ -323,7 +299,7 @@ class CertSystemStore(object):
         while pCertCtx:
             certCtx = pCertCtx[0]
             enhkey = certCtx.enhanced_keyusage()
-            if usage is not None:
+            if usage:
                 if enhkey is True or usage in enhkey:
                     yield certCtx
             else:
@@ -349,9 +325,6 @@ class CertSystemStore(object):
 class CertFile(object):
     """Wrapper to handle a temporary file for a CA.pem
 
-    Note: The object uses a temporary file because older Python versions have
-          no means to keep a tempfile after it has been closed.
-
     Usage:
         import wincertstore
         import atexit
@@ -365,20 +338,21 @@ class CertFile(object):
 
     """
 
-    def __init__(self, suffix="certstore"):
-        self._tempdir = tempfile.mkdtemp(suffix=suffix)
-        self._capem = os.path.join(self._tempdir, "ca.pem")
+    def __init__(self, suffix="ca.pem"):
+        handle, self._capem = tempfile.mkstemp(suffix=suffix)
+        os.close(handle)
 
+    @property
     def name(self):
         """Path to CA.pem
         """
         return self._capem
 
-    name = property(name)
-
     def close(self):
-        shutil.rmtree(self._tempdir)
-        self._tempdir = None
+        # if someone modified tempfile.tempfir before creating a CertFile
+        # and also handled its cleanup, then our temp file does not exist.
+        if os.path.exists(self._capem):
+            os.remove(self._capem)
         self._capem = None
 
     def __enter__(self):
@@ -390,13 +364,10 @@ class CertFile(object):
     def addcerts(self, certs):
         """Add certs to store
         """
-        f = open(self._capem, "a")
-        try:
+        with open(self._capem, "a") as f:
             #f.seek(0, os.SEEK_END)
             for cert in certs:
                 f.write(cert.get_pem())
-        finally:
-            f.close()
 
     def addstore(self, store):
         """Add store to CertFile
@@ -415,11 +386,8 @@ class CertFile(object):
     def read(self):
         """Read CA.pem file and return content
         """
-        f = open(self._capem, "r")
-        try:
+        with open(self._capem, "r") as f:
             return f.read()
-        finally:
-            f.close()
 
 
 if __name__ == "__main__":

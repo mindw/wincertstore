@@ -1,46 +1,18 @@
 #!/usr/bin/env python
-import sys
-import os
-try:
-    from setuptools.core import setup
-except ImportError:
-    from distutils.core import setup
-from distutils.core import Command
-try:
-    import subprocess
-except ImportError:
-    subprocess = None
 
-
-class PyTest(Command):
-    user_options = []
-    def initialize_options(self):
-        pass
-    def finalize_options(self):
-        pass
-    def run(self):
-        if subprocess is None:
-            exe = sys.executable
-            errno = os.spawnl(os.P_WAIT, exe, os.path.basename(exe),
-                              "tests.py")
-        else:
-            errno = subprocess.call([sys.executable, "tests.py"])
-        raise SystemExit(errno)
+from setuptools import setup
 
 
 def _read(fname):
-    f = open(fname)
-    try:
+    with open(fname) as f:
         return f.read()
-    finally:
-        f.close()
 
 long_description = [_read("README.txt"), _read("CHANGES.txt")]
 
 setup(
     name="wincertstore",
     version="0.2",
-    cmdclass={"test": PyTest},
+    setup_requires=['pytest-runner'],
     py_modules=["wincertstore"],
     author="Christian Heimes",
     author_email="christian@python.org",
