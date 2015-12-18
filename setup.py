@@ -7,7 +7,7 @@ def _read(fname):
     with open(fname) as f:
         return f.read()
 
-long_description = [_read("README.txt"), _read("CHANGES.txt")]
+long_description = [_read("README.rst"), _read("CHANGES.rst")]
 
 setup(
     name="wincertstore",
